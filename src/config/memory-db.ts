@@ -88,11 +88,33 @@ export class MemoryCollection<T extends { [key: string]: any }> {
         continue;
       }
 
-      // Handle $gte, $lte
-      if (expAny && typeof expAny === "object" && (expAny.$gte !== undefined || expAny.$lte !== undefined)) {
-        const numVal = Number(docVal);
-        if (expAny.$gte !== undefined && numVal < expAny.$gte) return false;
-        if (expAny.$lte !== undefined && numVal > expAny.$lte) return false;
+      // Handle $gte, $lte, $gt, $lt (numbers and Dates)
+      if (
+        expAny &&
+        typeof expAny === "object" &&
+        (expAny.$gte !== undefined ||
+          expAny.$lte !== undefined ||
+          expAny.$gt !== undefined ||
+          expAny.$lt !== undefined)
+      ) {
+        const isDate = docVal instanceof Date || expAny.$lt instanceof Date || expAny.$gt instanceof Date;
+        const valA = isDate ? new Date(docVal).getTime() : Number(docVal);
+        if (expAny.$gte !== undefined) {
+          const comp = isDate ? new Date(expAny.$gte).getTime() : Number(expAny.$gte);
+          if (valA < comp) return false;
+        }
+        if (expAny.$lte !== undefined) {
+          const comp = isDate ? new Date(expAny.$lte).getTime() : Number(expAny.$lte);
+          if (valA > comp) return false;
+        }
+        if (expAny.$gt !== undefined) {
+          const comp = isDate ? new Date(expAny.$gt).getTime() : Number(expAny.$gt);
+          if (valA <= comp) return false;
+        }
+        if (expAny.$lt !== undefined) {
+          const comp = isDate ? new Date(expAny.$lt).getTime() : Number(expAny.$lt);
+          if (valA >= comp) return false;
+        }
         continue;
       }
 
@@ -152,11 +174,19 @@ export class MemoryCollection<T extends { [key: string]: any }> {
 
   async insertOne(doc: any): Promise<{ insertedId: ObjectId; acknowledged: boolean }> {
     const id = doc._id || new ObjectId();
+    const idStr = id.toString();
+    if (this.data.has(idStr)) {
+      const err: any = new Error(
+        `E11000 duplicate key error collection: ${this.name} index: _id_ dup key: { _id: "${idStr}" }`
+      );
+      err.code = 11000;
+      throw err;
+    }
     const newDoc = { ...doc, _id: id };
     if (!newDoc.id && typeof id.toString === "function") {
-      newDoc.id = id.toString();
+      newDoc.id = idStr;
     }
-    this.data.set(id.toString(), newDoc);
+    this.data.set(idStr, newDoc);
     return { insertedId: id, acknowledged: true };
   }
 

@@ -80,6 +80,9 @@ async function setupIndexes(db: Db) {
     const wishlists = db.collection("wishlists");
     await wishlists.createIndex({ userId: 1, studioId: 1 }, { unique: true });
 
+    const reservationLocks = db.collection("reservation_locks");
+    await reservationLocks.createIndex({ expireAt: 1 }, { expireAfterSeconds: 0 });
+
     console.log("[Database] Indexes created successfully.");
   } catch (error) {
     console.warn("[Database] Index setup notice:", error);

@@ -210,7 +210,7 @@ export class AuthController {
       // Generate JWT
       const token = signUserJWT(authenticatedUser);
 
-      // Set HTTPOnly cookie
+      // Set HTTPOnly cookie strictly inaccessible to client JavaScript
       res.cookie("shoot_jwt_token", token, {
         httpOnly: true,
         secure: ENV.IS_PRODUCTION,
@@ -223,7 +223,6 @@ export class AuthController {
         success: true,
         message: "Logged in successfully",
         user: authenticatedUser,
-        token, // Also returned for client auth state if desired
       });
     } catch (error: any) {
       console.error("[AuthController.login] Error:", error);
@@ -301,7 +300,6 @@ export class AuthController {
       return res.status(200).json({
         success: true,
         user: authenticatedUser,
-        token,
       });
     } catch (error: any) {
       return res.status(500).json({ success: false, message: "Failed to synchronize social auth" });

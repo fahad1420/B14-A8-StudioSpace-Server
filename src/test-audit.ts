@@ -203,7 +203,31 @@ async function runAudit() {
   }
 
   // SIMULATE CONCURRENT CONFIRMATIONS FOR OVERLAPPING SLOTS
-  console.log("\n  [Concurrency Test] Simulating two simultaneous confirmation requests for overlapping slots...");
+  console.log("\n  [Concurrency Test 1] Testing Database Reservation Guard across distinct worker instances...");
+  const { ReservationLockService } = await import("./services/reservation-lock.service.js");
+  const worker1 = "instance_worker_node_01";
+  const worker2 = "instance_worker_node_02";
+  const lockStudioId = createdStudio._id.toString();
+  const lockDate = "2026-11-25";
+
+  // Worker 1 acquires lock
+  const w1Acquired = await ReservationLockService.acquireLock(lockStudioId, lockDate, worker1, 1000);
+  assert(w1Acquired === true, "Worker 1 atomically acquired database reservation lock");
+
+  // Worker 2 attempts to acquire same lock concurrently (must be rejected by DB primary unique key)
+  const w2Acquired = await ReservationLockService.acquireLock(lockStudioId, lockDate, worker2, 200);
+  assert(w2Acquired === false, "Worker 2 blocked by database-level lock (multi-instance mutual exclusion)");
+
+  // Worker 1 releases lock
+  const w1Released = await ReservationLockService.releaseLock(lockStudioId, lockDate, worker1);
+  assert(w1Released === true, "Worker 1 safely released database reservation lock");
+
+  // Worker 2 can now acquire lock
+  const w2AcquiredAfter = await ReservationLockService.acquireLock(lockStudioId, lockDate, worker2, 1000);
+  assert(w2AcquiredAfter === true, "Worker 2 acquired database lock after Worker 1 release");
+  await ReservationLockService.releaseLock(lockStudioId, lockDate, worker2);
+
+  console.log("\n  [Concurrency Test 2] Simulating two simultaneous confirmation requests across workers...");
   const concDate = "2026-11-20";
   const pend1 = await BookingService.createBooking(
     {
@@ -243,6 +267,35 @@ async function runAudit() {
   );
 
   console.log("\n--- 5. Booking Status Transitions & Cancellation Audit ---");
+  // Test Creator Cancelling Pending Booking
+  const cancelTestBooking = await BookingService.createBooking(
+    {
+      studioId: createdStudio._id.toString(),
+      bookingDate: testDateStr,
+      startTime: "18:30",
+      endTime: "21:30",
+    },
+    creatorUser
+  );
+  const cancelledBooking = await BookingService.cancelBooking(cancelTestBooking._id.toString(), creatorUser);
+  assert(cancelledBooking?.status === "Cancelled", "Creator can successfully cancel their own pending booking");
+
+  // Prevent double-cancellation
+  try {
+    await BookingService.cancelBooking(cancelTestBooking._id.toString(), creatorUser);
+    assert(false, "Double cancellation should be rejected");
+  } catch (e: any) {
+    assert(e.statusCode === 400, "Double cancellation rejected with HTTP 400 Bad Request");
+  }
+
+  // Intruder cannot cancel another user's booking
+  try {
+    await BookingService.cancelBooking(bookingA._id.toString(), intruderUser);
+    assert(false, "Intruder cancelling booking should be rejected");
+  } catch (e: any) {
+    assert(e.statusCode === 403, "Intruder rejected from cancelling booking (HTTP 403 Forbidden)");
+  }
+
   // Non-Host cannot update booking status
   try {
     await BookingService.updateBookingStatus(bookingA._id.toString(), "Completed", intruderUser);
@@ -259,11 +312,19 @@ async function runAudit() {
     assert(false, "Host marking completed failed", e.message);
   }
 
+  // Cannot cancel a completed booking
+  try {
+    await BookingService.cancelBooking(bookingA._id.toString(), creatorUser);
+    assert(false, "Cancelling completed booking should be rejected");
+  } catch (e: any) {
+    assert(e.statusCode === 400, "Cancelling completed booking rejected with HTTP 400 Bad Request");
+  }
+
   // Delete studio by owner cleanup
   const deleted = await StudioService.deleteStudio(createdStudio._id.toString(), hostUser);
   assert(deleted === true, "Owner successfully deleted studio listing");
 
-  console.log("\n--- 6. JWT Token Security & Cookie Signing Audit ---");
+  console.log("\n--- 6. JWT Token Security & Inaccessibility to Client JavaScript ---");
   const testToken = signUserJWT(hostUser);
   assert(typeof testToken === "string" && testToken.length > 20, "JWT signed successfully with secure secret");
   
@@ -274,6 +335,29 @@ async function runAudit() {
 
   const invalidTokenResult = verifyUserJWT("tampered.fake.jwt-token");
   assert(invalidTokenResult === null, "Tampered/invalid JWT correctly rejected as null");
+
+  // Verify that AuthController.login response DOES NOT contain token in body
+  const mockReq: any = {
+    body: {
+      email: hostUser.email,
+      password: "ExaminerPassword123!",
+    },
+  };
+  let capturedCookie: any = null;
+  let capturedJson: any = null;
+  const mockRes: any = {
+    cookie: (name: string, val: string, opts: any) => {
+      capturedCookie = { name, val, opts };
+    },
+    status: () => mockRes,
+    json: (data: any) => {
+      capturedJson = data;
+    },
+  };
+  await AuthController.login(mockReq, mockRes);
+  assert(capturedCookie?.opts?.httpOnly === true, "Cookie is strictly configured with httpOnly: true");
+  assert(capturedJson?.token === undefined, "Security: JWT token is completely omitted from response JSON body (inaccessible to client JS)");
+  assert(!!capturedJson?.user?.id, "User identity returned in response body without exposing raw JWT credential");
 
   console.log("\n--- 7. Better Auth Native Registration & Login Verification ---");
   const { getAuth } = await import("./config/auth.js");
