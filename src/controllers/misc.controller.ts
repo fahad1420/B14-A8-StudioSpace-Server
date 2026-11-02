@@ -55,9 +55,9 @@ export class MiscController {
         .toArray();
 
       const studioIds = wishlists
-        .map((w) => w.studioId)
-        .filter((id) => ObjectId.isValid(id))
-        .map((id) => new ObjectId(id));
+        .map((w: any) => w.studioId)
+        .filter((id: any) => ObjectId.isValid(id))
+        .map((id: any) => new ObjectId(id));
 
       const studios = studioIds.length > 0
         ? await db.collection("studios").find({ _id: { $in: studioIds } }).toArray()
@@ -66,7 +66,7 @@ export class MiscController {
       res.status(200).json({
         success: true,
         data: studios,
-        savedIds: wishlists.map((w) => w.studioId),
+        savedIds: wishlists.map((w: any) => w.studioId),
       });
     } catch (error: any) {
       console.error("[MiscController.getWishlist] Error:", error);
@@ -130,3 +130,4 @@ export class MiscController {
     }
   }
 }
+

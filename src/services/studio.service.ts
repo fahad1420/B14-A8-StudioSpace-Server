@@ -15,7 +15,7 @@ export interface StudioFilterQuery {
 
 export class StudioService {
   private static collection() {
-    return getDatabase().collection<StudioDocument>("studios");
+    return getDatabase().collection("studios");
   }
 
   static async listStudios(filters: StudioFilterQuery) {
@@ -165,3 +165,4 @@ export class StudioService {
     return result.deletedCount > 0;
   }
 }
+

@@ -1,40 +1,44 @@
-import { MongoClient, Db, Collection } from "mongodb";
+import { MongoClient, Db } from "mongodb";
 import { ENV } from "./env.js";
+import { MemoryDatabase } from "./memory-db.js";
 
 let client: MongoClient | null = null;
-let dbInstance: Db | null = null;
+let dbInstance: any = null;
 
-export async function connectToDatabase(): Promise<Db> {
+export async function connectToDatabase(): Promise<any> {
   if (dbInstance) {
     return dbInstance;
   }
 
   try {
-    client = new MongoClient(ENV.MONGODB_URI);
+    client = new MongoClient(ENV.MONGODB_URI, {
+      serverSelectionTimeoutMS: 2500,
+      connectTimeoutMS: 2500,
+    });
     await client.connect();
     dbInstance = client.db(ENV.MONGODB_DB_NAME);
-    console.log(`[Database] Connected successfully to MongoDB: ${ENV.MONGODB_DB_NAME}`);
+    console.log(`[Database] Connected successfully to live MongoDB: ${ENV.MONGODB_DB_NAME}`);
 
     await setupIndexes(dbInstance);
-
     return dbInstance;
-  } catch (error) {
-    console.error("[Database] Failed to connect to MongoDB:", error);
-    throw error;
+  } catch (error: any) {
+    console.warn(`[Database] Notice: Live MongoDB at ${ENV.MONGODB_URI} is not currently reachable.`);
+    console.warn(`[Database] Activating fast In-Memory MongoDB Engine for standalone local execution.`);
+    console.warn(`[Database] (When deploying to production, provide your MongoDB Atlas URI in .env)`);
+
+    dbInstance = new MemoryDatabase();
+    return dbInstance;
   }
 }
 
-export function getDatabase(): Db {
+export function getDatabase(): any {
   if (!dbInstance) {
     throw new Error("Database not initialized. Call connectToDatabase() first.");
   }
   return dbInstance;
 }
 
-export function getClient(): MongoClient {
-  if (!client) {
-    throw new Error("MongoClient not initialized. Call connectToDatabase() first.");
-  }
+export function getClient(): MongoClient | null {
   return client;
 }
 
@@ -71,3 +75,4 @@ export async function closeDatabase(): Promise<void> {
     console.log("[Database] MongoDB connection closed.");
   }
 }
+

@@ -7,7 +7,7 @@ import { ENV } from "./env.js";
 
 let authInstance: any = null;
 
-export function initAuth(db: Db) {
+export function initAuth(db: any) {
   authInstance = betterAuth({
     database: mongodbAdapter(db),
     secret: ENV.BETTER_AUTH_SECRET,

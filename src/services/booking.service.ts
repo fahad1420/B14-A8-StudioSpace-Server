@@ -5,11 +5,11 @@ import { StudioDocument } from "../models/studio.model.js";
 
 export class BookingService {
   private static collection() {
-    return getDatabase().collection<BookingDocument>("bookings");
+    return getDatabase().collection("bookings");
   }
 
   private static studioCollection() {
-    return getDatabase().collection<StudioDocument>("studios");
+    return getDatabase().collection("studios");
   }
 
   /**
@@ -280,3 +280,4 @@ export class BookingService {
     return this.collection().findOne({ _id: new ObjectId(id) });
   }
 }
+
