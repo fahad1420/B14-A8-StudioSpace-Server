@@ -274,6 +274,16 @@ export class AuthController {
       });
     }
 
+    // Ensure HTTPOnly JWT cookie is synchronized for Better Auth & Google OAuth sessions
+    const token = signUserJWT(req.user);
+    res.cookie(ENV.COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: ENV.IS_PRODUCTION,
+      sameSite: ENV.IS_PRODUCTION ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+    });
+
     return res.status(200).json({
       success: true,
       user: req.user,

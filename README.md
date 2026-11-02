@@ -113,11 +113,32 @@ BETTER_AUTH_SECRET=studiospace-secure-jwt-auth-secret-key-32chars-min
 BETTER_AUTH_URL=http://localhost:5000
 FRONTEND_URL=http://localhost:3000
 JWT_SECRET=studiospace-secure-jwt-auth-secret-key-32chars-min
+
+# Google OAuth Credentials (Optional in local development, required for cloud Google login)
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-google-client-secret
 ```
 
 ---
 
-## 7. Local Setup & Execution
+## 7. Google Cloud Console Setup (Google OAuth)
+
+To configure Google Social Login with Better Auth:
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) -> **APIs & Services** -> **Credentials**.
+2. Click **Create Credentials** -> **OAuth Client ID**.
+3. Application Type: **Web application**.
+4. Name: `StudioSpace Auth`.
+5. **Authorized JavaScript origins:**
+   - Local: `http://localhost:5000`, `http://localhost:3000`
+   - Production: `https://<your-render-app>.onrender.com`, `https://<your-vercel-app>.vercel.app`
+6. **Authorized redirect URIs:**
+   - Local: `http://localhost:5000/api/auth/callback/google`
+   - Production: `https://<your-render-app>.onrender.com/api/auth/callback/google`
+7. Copy the generated **Client ID** and **Client Secret** into your `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+---
+
+## 8. Local Setup & Execution
 
 ```bash
 # 1. Navigate to server folder
@@ -141,7 +162,30 @@ npm start
 
 ---
 
-## 8. Examiner Test Account
+## 9. Render Deployment Guide
+
+1. Create a new **Web Service** on [Render](https://render.com).
+2. Connect your GitHub repository `b14-a8-shoot-location-server`.
+3. Configure settings:
+   - **Environment:** `Node`
+   - **Build Command:** `npm install && npm run build`
+   - **Start Command:** `npm start`
+   - **Health Check Path:** `/api/health`
+4. Set Environment Variables:
+   - `NODE_ENV`: `production`
+   - `PORT`: `5000`
+   - `MONGODB_URI`: `<your-mongodb-atlas-connection-string>`
+   - `MONGODB_DB_NAME`: `studiospace`
+   - `BETTER_AUTH_SECRET`: `<secure-32-char-random-string>`
+   - `JWT_SECRET`: `<secure-32-char-random-string>`
+   - `BETTER_AUTH_URL`: `https://<your-render-app>.onrender.com`
+   - `FRONTEND_URL`: `https://<your-vercel-app>.vercel.app`
+   - `GOOGLE_CLIENT_ID`: `<your-google-client-id>` (optional)
+   - `GOOGLE_CLIENT_SECRET`: `<your-google-client-secret>` (optional)
+
+---
+
+## 10. Examiner Test Account
 For evaluator convenience, the database seed script generates verified host accounts:
 - **Primary Email:** `examiner@studiospace.com`
 - **Legacy Alias:** `examiner@shootlocation.com`

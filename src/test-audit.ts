@@ -401,6 +401,41 @@ async function runAudit() {
     assert(true, "Better Auth native duplicate email registration correctly rejected");
   }
 
+  console.log("\n--- 7b. Google OAuth Flow & Session Synchronization Verification ---");
+  // Test Better Auth Google OAuth provider integration
+  process.env.GOOGLE_CLIENT_ID = "test-client-id-12345.apps.googleusercontent.com";
+  process.env.GOOGLE_CLIENT_SECRET = "test-google-secret-67890";
+  const authWithGoogle = initAuth(db);
+  const socialRes: any = await authWithGoogle.api.signInSocial({
+    body: {
+      provider: "google",
+      callbackURL: "http://localhost:3000/dashboard",
+    },
+  });
+  assert(!!socialRes?.url, "Better Auth Google OAuth generates valid authorization URL");
+  assert(socialRes?.url?.includes("accounts.google.com"), "Authorization URL targets official Google OAuth accounts endpoint");
+  assert(socialRes?.url?.includes("test-client-id-12345"), "Google OAuth URL encapsulates configured Client ID");
+  assert(socialRes?.url?.includes("callback%2Fgoogle"), "Google OAuth URL encapsulates callback redirect URI");
+  assert(socialRes?.url?.includes("code_challenge"), "Google OAuth URL enforces secure PKCE code challenge");
+
+  // Test that AuthController.me synchronizes HTTPOnly JWT cookie
+  let meCapturedCookie: any = null;
+  const mockMeReq: any = {
+    user: hostUser,
+    cookies: {},
+    headers: {},
+  };
+  const mockMeRes: any = {
+    cookie: (name: string, val: string, opts: any) => {
+      meCapturedCookie = { name, val, opts };
+    },
+    status: () => mockMeRes,
+    json: () => {},
+  };
+  await AuthController.me(mockMeReq, mockMeRes);
+  assert(meCapturedCookie?.name === "studiospace_jwt_token", "AuthController.me synchronizes studiospace_jwt_token cookie");
+  assert(meCapturedCookie?.opts?.httpOnly === true, "Synchronized session cookie enforces httpOnly: true");
+
   console.log("\n--- 8. Production Persistence Guard Verification ---");
   // Test that in production mode, silent memory fallback is strictly prohibited
   try {
