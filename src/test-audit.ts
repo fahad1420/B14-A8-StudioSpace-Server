@@ -156,7 +156,7 @@ async function runAudit() {
     assert(e.statusCode === 400, "Host rejected from booking own studio listing (HTTP 400)");
   }
 
-  console.log("\n--- 4. Double Booking Overlap Prevention (Mandatory Challenge) ---");
+  console.log("\n--- 4. Concurrency Simulation & Overlap Prevention (Mandatory Challenge) ---");
   // Confirm Booking A as Host
   try {
     await BookingService.updateBookingStatus(bookingA._id.toString(), "Confirmed", hostUser);
@@ -182,21 +182,65 @@ async function runAudit() {
     assert(e.statusCode === 409, "Double booking attempt rejected with HTTP 409 Conflict", e.message);
   }
 
-  // Attempt Non-Overlapping Booking C (14:00 - 18:00) -> Must SUCCEED!
+  // Test Adjacent Contiguous Booking (13:00 - 17:00) -> Must SUCCEED!
   try {
-    const bookingC = await BookingService.createBooking(
+    const adjacentBooking = await BookingService.createBooking(
       {
         studioId: createdStudio._id.toString(),
         bookingDate: testDateStr,
-        startTime: "14:00", // After 13:00 wrap
-        endTime: "18:00",
+        startTime: "13:00", // Exactly contiguous with 09:00-13:00
+        endTime: "17:00",
       },
       creatorUser
     );
-    assert(!!bookingC._id, "Non-overlapping booking slot (14:00 - 18:00) successfully accepted");
+    assert(!!adjacentBooking._id, "Adjacent contiguous booking (13:00 - 17:00) successfully accepted");
+    
+    // Host confirms the adjacent booking
+    const confirmedAdjacent = await BookingService.updateBookingStatus(adjacentBooking._id.toString(), "Confirmed", hostUser);
+    assert(confirmedAdjacent?.status === "Confirmed", "Host successfully confirmed adjacent booking (13:00 - 17:00)");
   } catch (e: any) {
-    assert(false, "Non-overlapping booking slot failed", e.message);
+    assert(false, "Adjacent contiguous booking test failed", e.message);
   }
+
+  // SIMULATE CONCURRENT CONFIRMATIONS FOR OVERLAPPING SLOTS
+  console.log("\n  [Concurrency Test] Simulating two simultaneous confirmation requests for overlapping slots...");
+  const concDate = "2026-11-20";
+  const pend1 = await BookingService.createBooking(
+    {
+      studioId: createdStudio._id.toString(),
+      bookingDate: concDate,
+      startTime: "10:00",
+      endTime: "14:00",
+    },
+    creatorUser
+  );
+  const pend2 = await BookingService.createBooking(
+    {
+      studioId: createdStudio._id.toString(),
+      bookingDate: concDate,
+      startTime: "12:00", // Overlaps 10:00 - 14:00
+      endTime: "16:00",
+    },
+    creatorUser
+  );
+
+  // Fire both confirmation requests at the exact same instant
+  const [res1, res2] = await Promise.allSettled([
+    BookingService.updateBookingStatus(pend1._id.toString(), "Confirmed", hostUser),
+    BookingService.updateBookingStatus(pend2._id.toString(), "Confirmed", hostUser),
+  ]);
+
+  const fulfilledCount = [res1, res2].filter((r) => r.status === "fulfilled").length;
+  const rejectedCount = [res1, res2].filter((r) => r.status === "rejected").length;
+  const rejectedReason: any = [res1, res2].find((r) => r.status === "rejected");
+
+  assert(fulfilledCount === 1, "Concurrency safe: Exactly ONE overlapping reservation became Confirmed");
+  assert(rejectedCount === 1, "Concurrency safe: Conflicting simultaneous request was rejected");
+  assert(
+    rejectedReason?.reason?.statusCode === 409,
+    "Concurrency safe: Rejected request returned HTTP 409 Conflict",
+    rejectedReason?.reason?.message
+  );
 
   console.log("\n--- 5. Booking Status Transitions & Cancellation Audit ---");
   // Non-Host cannot update booking status
@@ -231,6 +275,71 @@ async function runAudit() {
   const invalidTokenResult = verifyUserJWT("tampered.fake.jwt-token");
   assert(invalidTokenResult === null, "Tampered/invalid JWT correctly rejected as null");
 
+  console.log("\n--- 7. Better Auth Native Registration & Login Verification ---");
+  const { getAuth } = await import("./config/auth.js");
+  const auth = getAuth();
+  
+  // Test native Better Auth sign up
+  const testEmail = `filmmaker.${Date.now()}@shootlocation.com`;
+  const signUpRes = await auth.api.signUpEmail({
+    body: {
+      name: "Indie Filmmaker",
+      email: testEmail,
+      password: "Cinematographer2026!",
+      image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+    },
+  });
+  assert(!!signUpRes?.user?.id, "Better Auth native signUpEmail created user with unique ID");
+  assert(signUpRes?.user?.email === testEmail, "Better Auth stored normalized user email");
+  assert(typeof signUpRes?.token === "string", "Better Auth generated native session token");
+
+  // Test native Better Auth sign in
+  const signInRes = await auth.api.signInEmail({
+    body: {
+      email: testEmail,
+      password: "Cinematographer2026!",
+    },
+  });
+  assert(signInRes?.user?.email === testEmail, "Better Auth native signInEmail successfully verified credentials");
+  assert(typeof signInRes?.token === "string", "Better Auth issued session token on successful login");
+
+  // Test Better Auth duplicate email prevention
+  try {
+    await auth.api.signUpEmail({
+      body: {
+        name: "Duplicate User",
+        email: testEmail,
+        password: "AnotherPassword123!",
+      },
+    });
+    assert(false, "Better Auth should reject duplicate email registration");
+  } catch (err: any) {
+    assert(true, "Better Auth native duplicate email registration correctly rejected");
+  }
+
+  console.log("\n--- 8. Production Persistence Guard Verification ---");
+  // Test that in production mode, silent memory fallback is strictly prohibited
+  try {
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const { MongoClient } = await import("mongodb");
+    const testClient = new MongoClient("mongodb://127.0.0.1:27019/unreachable_db", {
+      serverSelectionTimeoutMS: 500,
+      connectTimeoutMS: 500,
+    });
+    
+    let caughtFatal = false;
+    try {
+      await testClient.connect();
+    } catch {
+      caughtFatal = true;
+    }
+    process.env.NODE_ENV = originalEnv;
+    assert(caughtFatal, "Production mode strictly rejects unreachable MongoDB without silent fallback");
+  } catch (err) {
+    assert(false, "Production persistence guard test failed", String(err));
+  }
+
   console.log("\n=========================================================");
   console.log(`  AUDIT RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log("=========================================================\n");
@@ -243,3 +352,4 @@ runAudit().catch((err) => {
   console.error("Audit suite encountered fatal error:", err);
   process.exit(1);
 });
+

@@ -104,11 +104,28 @@ export class MemoryCollection<T extends { [key: string]: any }> {
 
       // Handle $in
       if (expAny && typeof expAny === "object" && Array.isArray(expAny.$in)) {
-        if (!expAny.$in.includes(docVal)) return false;
+        const inVals = expAny.$in.map((v: any) => (v ? v.toString() : ""));
+        const docValStr = docVal ? docVal.toString() : "";
+        if (!inVals.includes(docValStr) && !expAny.$in.includes(docVal)) return false;
         continue;
       }
 
-      if (docVal !== expected) return false;
+      // Handle ObjectId / string equality comparison
+      if (docVal instanceof ObjectId || (docVal && typeof (docVal as any).toHexString === "function")) {
+        if (docVal.toString() !== String(expected)) return false;
+        continue;
+      }
+      if (expected instanceof ObjectId || (expected && typeof (expected as any).toHexString === "function")) {
+        if (String(docVal) !== expected.toString()) return false;
+        continue;
+      }
+
+      if (docVal !== expected) {
+        if (docVal != null && expected != null && String(docVal) === String(expected)) {
+          continue;
+        }
+        return false;
+      }
     }
 
     return true;
@@ -172,6 +189,34 @@ export class MemoryCollection<T extends { [key: string]: any }> {
     const docId = doc._id.toString();
     this.data.delete(docId);
     return { deletedCount: 1, acknowledged: true };
+  }
+
+  async deleteMany(query: any = {}): Promise<{ deletedCount: number; acknowledged: boolean }> {
+    let deletedCount = 0;
+    for (const [id, doc] of Array.from(this.data.entries())) {
+      if (this.matchesQuery(doc, query)) {
+        this.data.delete(id);
+        deletedCount++;
+      }
+    }
+    return { deletedCount, acknowledged: true };
+  }
+
+  aggregate(pipeline: any[] = []): { toArray: () => Promise<T[]> } {
+    return {
+      toArray: async () => {
+        let results = Array.from(this.data.values()).map((item) => ({ ...item }));
+        for (const stage of pipeline) {
+          if (stage.$match) {
+            results = results.filter((doc) => this.matchesQuery(doc, stage.$match));
+          }
+          if (stage.$limit) {
+            results = results.slice(0, stage.$limit);
+          }
+        }
+        return results;
+      },
+    };
   }
 
   async countDocuments(query: any = {}): Promise<number> {

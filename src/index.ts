@@ -20,16 +20,17 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "https://shootlocation.vercel.app",
-];
+].filter(Boolean);
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || !ENV.IS_PRODUCTION) {
+        return callback(null, origin);
       }
-      return callback(null, true); // Allow all configured origins in development
+      return callback(new Error(`CORS policy violation: ${origin} not allowed`));
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],

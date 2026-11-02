@@ -3,6 +3,38 @@ import { getDatabase } from "../config/db.js";
 import { CreateBookingSchema, BookingDocument, BookingStatus } from "../models/booking.model.js";
 import { StudioDocument } from "../models/studio.model.js";
 
+/**
+ * Concurrency Lock Manager: guarantees serialized evaluation of booking confirmations
+ * for the same studio and date to eliminate race conditions.
+ */
+class BookingLockManager {
+  private static locks: Map<string, Promise<any>> = new Map();
+
+  static async runExclusive<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = this.locks.get(key) || Promise.resolve();
+    let release: () => void = () => {};
+    const nextPromise = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const runTask = existing
+      .catch(() => {})
+      .then(async () => {
+        try {
+          return await fn();
+        } finally {
+          release();
+          if (this.locks.get(key) === runTask) {
+            this.locks.delete(key);
+          }
+        }
+      });
+
+    this.locks.set(key, runTask);
+    return runTask;
+  }
+}
+
 export class BookingService {
   private static collection() {
     return getDatabase().collection("bookings");
@@ -253,23 +285,51 @@ export class BookingService {
       throw err;
     }
 
-    // Double check conflict if confirming
+    // If confirming, serialize through lock to guarantee atomic conflict detection
     if (newStatus === "Confirmed") {
-      const hasConflict = await this.checkConfirmedConflict(
-        booking.studioId,
-        booking.bookingDate,
-        booking.startTime,
-        booking.endTime,
-        id
-      );
+      const lockKey = `${booking.studioId}:${booking.bookingDate}`;
+      return BookingLockManager.runExclusive(lockKey, async () => {
+        // Re-read booking inside critical section
+        const currentBooking = await this.collection().findOne({ _id: new ObjectId(id) });
+        if (!currentBooking) {
+          const err: any = new Error("Booking not found");
+          err.statusCode = 404;
+          throw err;
+        }
 
-      if (hasConflict) {
-        const err: any = new Error(
-          "Cannot confirm booking: Another confirmed booking already occupies this time slot."
+        if (currentBooking.status === "Confirmed") {
+          return currentBooking; // Already confirmed
+        }
+
+        if (currentBooking.status === "Cancelled" || currentBooking.status === "Rejected") {
+          const err: any = new Error(`Cannot confirm a booking that is currently ${currentBooking.status}`);
+          err.statusCode = 400;
+          throw err;
+        }
+
+        const hasConflict = await this.checkConfirmedConflict(
+          currentBooking.studioId,
+          currentBooking.bookingDate,
+          currentBooking.startTime,
+          currentBooking.endTime,
+          id
         );
-        err.statusCode = 409;
-        throw err;
-      }
+
+        if (hasConflict) {
+          const err: any = new Error(
+            "Cannot confirm booking: Another confirmed booking already occupies this time slot."
+          );
+          err.statusCode = 409;
+          throw err;
+        }
+
+        await this.collection().updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "Confirmed", updatedAt: new Date() } }
+        );
+
+        return this.collection().findOne({ _id: new ObjectId(id) });
+      });
     }
 
     await this.collection().updateOne(

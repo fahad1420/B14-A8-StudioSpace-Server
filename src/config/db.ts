@@ -10,6 +10,16 @@ export async function connectToDatabase(): Promise<any> {
     return dbInstance;
   }
 
+  const isProduction = ENV.IS_PRODUCTION || process.env.NODE_ENV === "production";
+  const explicitMemoryDb = process.env.USE_MEMORY_DB === "true" || process.env.NODE_ENV === "test";
+
+  // If in test or explicitly requested memory mode (and not in production)
+  if (explicitMemoryDb && !isProduction) {
+    console.log("[Database] Explicitly using In-Memory Database adapter for testing/isolated run.");
+    dbInstance = new MemoryDatabase();
+    return dbInstance;
+  }
+
   try {
     client = new MongoClient(ENV.MONGODB_URI, {
       serverSelectionTimeoutMS: 2500,
@@ -22,6 +32,15 @@ export async function connectToDatabase(): Promise<any> {
     await setupIndexes(dbInstance);
     return dbInstance;
   } catch (error: any) {
+    if (isProduction) {
+      console.error("[Database] FATAL: Production environment requires a reachable MongoDB Atlas connection string.");
+      console.error("[Database] Error details:", error.message || error);
+      throw new Error(
+        `[Database] FATAL: In-memory fallback is strictly disallowed in production. Ensure MONGODB_URI is configured and Atlas is accessible.`
+      );
+    }
+
+    // In local development only, notify and fall back gracefully if local daemon is absent
     console.warn(`[Database] Notice: Live MongoDB at ${ENV.MONGODB_URI} is not currently reachable.`);
     console.warn(`[Database] Activating fast In-Memory MongoDB Engine for standalone local execution.`);
     console.warn(`[Database] (When deploying to production, provide your MongoDB Atlas URI in .env)`);

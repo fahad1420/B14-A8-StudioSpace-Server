@@ -58,12 +58,50 @@ export class AuthController {
         });
       }
 
-      const userId = crypto.randomUUID();
       const imageUrl =
         validated.photoUrl && validated.photoUrl.trim() !== ""
           ? validated.photoUrl
           : `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80`;
 
+      // 1. Primary: Use Better Auth native signUpEmail API
+      const auth = getAuth();
+      let createdUser: any = null;
+      try {
+        const baResult = await auth.api.signUpEmail({
+          body: {
+            name: validated.name,
+            email: validated.email.toLowerCase(),
+            password: validated.password,
+            image: imageUrl,
+          },
+        });
+        if (baResult && baResult.user) {
+          createdUser = baResult.user;
+        }
+      } catch (baErr: any) {
+        if (baErr.message?.includes("already exists") || baErr.status === 400 || baErr.code === "USER_ALREADY_EXISTS") {
+          return res.status(400).json({
+            success: false,
+            message: "An account with this email address already exists. Please log in.",
+          });
+        }
+        console.warn("[AuthController.register] Better Auth engine notice, activating direct adapter:", baErr.message);
+      }
+
+      if (createdUser) {
+        return res.status(201).json({
+          success: true,
+          message: "Registration successful. Please log in with your credentials.",
+          data: {
+            id: createdUser.id,
+            name: createdUser.name,
+            email: createdUser.email,
+            image: createdUser.image,
+          },
+        });
+      }
+
+      const userId = crypto.randomUUID();
       const newUserDoc = {
         id: userId,
         name: validated.name,
@@ -115,35 +153,59 @@ export class AuthController {
       const userCollection = db.collection("user");
       const accountCollection = db.collection("account");
 
-      const user = await userCollection.findOne({
-        email: validated.email.toLowerCase(),
-      });
+      let authenticatedUser: AuthenticatedUser | null = null;
 
-      if (!user) {
+      // 1. Primary Authentication: Better Auth native signInEmail
+      try {
+        const auth = getAuth();
+        const baResult = await auth.api.signInEmail({
+          body: {
+            email: validated.email.toLowerCase(),
+            password: validated.password,
+          },
+        });
+
+        if (baResult && baResult.user) {
+          authenticatedUser = {
+            id: baResult.user.id || (baResult.user as any)._id?.toString(),
+            email: baResult.user.email,
+            name: baResult.user.name,
+            image: baResult.user.image,
+          };
+        }
+      } catch (baErr: any) {
+        // Better Auth check returned error, proceed to check pre-seeded accounts
+      }
+
+      // 2. Compatibility fallback: check database account collection for pre-seeded or migrated accounts
+      if (!authenticatedUser) {
+        const user = await userCollection.findOne({
+          email: validated.email.toLowerCase(),
+        });
+
+        if (user) {
+          const account = await accountCollection.findOne({
+            userId: user.id || user._id.toString(),
+            providerId: "credential",
+          });
+
+          if (account && account.password && verifyPassword(validated.password, account.password)) {
+            authenticatedUser = {
+              id: user.id || user._id.toString(),
+              email: user.email,
+              name: user.name,
+              image: user.image,
+            };
+          }
+        }
+      }
+
+      if (!authenticatedUser) {
         return res.status(401).json({
           success: false,
           message: "Invalid email or password.",
         });
       }
-
-      const account = await accountCollection.findOne({
-        userId: user.id || user._id.toString(),
-        providerId: "credential",
-      });
-
-      if (!account || !account.password || !verifyPassword(validated.password, account.password)) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid email or password.",
-        });
-      }
-
-      const authenticatedUser: AuthenticatedUser = {
-        id: user.id || user._id.toString(),
-        email: user.email,
-        name: user.name,
-        image: user.image,
-      };
 
       // Generate JWT
       const token = signUserJWT(authenticatedUser);
