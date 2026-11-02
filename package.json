@@ -1,7 +1,7 @@
 {
   "name": "b14-a8-shoot-location-server",
   "version": "1.0.0",
-  "description": "Backend API Server for Shoot Location - Creative Studio & Production Space Rental Marketplace",
+  "description": "Backend API Server for StudioSpace - Creative Studio & Production Space Rental Marketplace",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
@@ -11,14 +11,14 @@
     "seed": "tsx src/seed.ts"
   },
   "keywords": [
-    "shoot-location",
+    "studiospace",
     "marketplace",
     "studios",
     "express",
     "typescript",
     "mongodb"
   ],
-  "author": "Shoot Location Team",
+  "author": "StudioSpace Team",
   "license": "ISC",
   "dependencies": {
     "better-auth": "^1.1.21",

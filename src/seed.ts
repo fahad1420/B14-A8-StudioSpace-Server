@@ -219,9 +219,13 @@ export async function seedDatabase() {
   const accountCollection = db.collection("account");
   const studioCollection = db.collection("studios");
 
-  // 1. Create or ensure Examiner Test Account
-  const examinerEmail = "examiner@shootlocation.com";
-  let hostUser: any = await userCollection.findOne({ email: examinerEmail });
+  // 1. Create or ensure Examiner Test Account (StudioSpace primary + ShootLocation alias)
+  const examinerEmail = "examiner@studiospace.com";
+  const legacyEmail = "examiner@shootlocation.com";
+
+  let hostUser: any = await userCollection.findOne({
+    $or: [{ email: examinerEmail }, { email: legacyEmail }],
+  });
 
   if (!hostUser) {
     const hostId = "examiner-host-user-id-01";
@@ -246,8 +250,32 @@ export async function seedDatabase() {
       createdAt: new Date(),
       updatedAt: new Date(),
     } as any);
+
+    // Also seed legacy email alias for evaluator flexibility
+    const legacyHost = {
+      _id: new ObjectId(),
+      id: "examiner-legacy-host-02",
+      name: "Examiner Host",
+      email: legacyEmail,
+      emailVerified: true,
+      image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    await userCollection.insertOne(legacyHost as any);
+    await accountCollection.insertOne({
+      _id: new ObjectId(),
+      id: crypto.randomUUID(),
+      userId: "examiner-legacy-host-02",
+      accountId: "examiner-legacy-host-02",
+      providerId: "credential",
+      password: hashPassword("ExaminerPassword123!"),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any);
+
     hostUser = newHost;
-    console.log("[Seed] Created Examiner Test Account: examiner@shootlocation.com / ExaminerPassword123!");
+    console.log("[Seed] Created Examiner Test Accounts: examiner@studiospace.com / ExaminerPassword123!");
   } else {
     console.log("[Seed] Examiner Test Account already exists.");
   }

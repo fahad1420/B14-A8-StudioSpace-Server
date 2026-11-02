@@ -18,7 +18,7 @@ export class MiscController {
       if (existing) {
         return res.status(200).json({
           success: true,
-          message: "You are already subscribed to the Shoot Location creative digest.",
+          message: "You are already subscribed to the StudioSpace creative digest.",
         });
       }
 

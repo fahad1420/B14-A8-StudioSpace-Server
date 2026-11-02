@@ -19,6 +19,7 @@ const allowedOrigins = [
   ENV.FRONTEND_URL,
   "http://localhost:3000",
   "http://127.0.0.1:3000",
+  "https://studiospace.vercel.app",
   "https://shootlocation.vercel.app",
 ].filter(Boolean);
 
@@ -76,7 +77,7 @@ async function startServer() {
     app.get("/api/health", (_req, res) => {
       res.status(200).json({
         status: "ok",
-        brand: "SHOOT LOCATION",
+        brand: "STUDIOSPACE",
         tagline: "Find Your Space. Create Your Story.",
         environment: ENV.NODE_ENV,
         timestamp: new Date().toISOString(),
@@ -86,9 +87,9 @@ async function startServer() {
     // Root info
     app.get("/", (_req, res) => {
       res.status(200).json({
-        name: "B14-A8 | Shoot Location Server",
+        name: "B14-A8 | StudioSpace Server",
         version: "1.0.0",
-        brand: "SHOOT LOCATION",
+        brand: "STUDIOSPACE",
         docs: "/api/health",
       });
     });
@@ -121,7 +122,7 @@ async function startServer() {
     // Start Express listener
     const server = app.listen(ENV.PORT, () => {
       console.log(`\n======================================================`);
-      console.log(`  SHOOT LOCATION API SERVER RUNNING ON PORT ${ENV.PORT}`);
+      console.log(`  STUDIOSPACE API SERVER RUNNING ON PORT ${ENV.PORT}`);
       console.log(`  Environment: ${ENV.NODE_ENV}`);
       console.log(`  Healthcheck: http://localhost:${ENV.PORT}/api/health`);
       console.log(`======================================================\n`);

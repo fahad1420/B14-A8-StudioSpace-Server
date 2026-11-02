@@ -211,7 +211,7 @@ export class AuthController {
       const token = signUserJWT(authenticatedUser);
 
       // Set HTTPOnly cookie strictly inaccessible to client JavaScript
-      res.cookie("shoot_jwt_token", token, {
+      res.cookie(ENV.COOKIE_NAME, token, {
         httpOnly: true,
         secure: ENV.IS_PRODUCTION,
         sameSite: ENV.IS_PRODUCTION ? "none" : "lax",
@@ -235,6 +235,13 @@ export class AuthController {
 
   static async logout(req: Request, res: Response) {
     try {
+      res.clearCookie(ENV.COOKIE_NAME, {
+        httpOnly: true,
+        secure: ENV.IS_PRODUCTION,
+        sameSite: ENV.IS_PRODUCTION ? "none" : "lax",
+        path: "/",
+      });
+
       res.clearCookie("shoot_jwt_token", {
         httpOnly: true,
         secure: ENV.IS_PRODUCTION,
@@ -289,7 +296,7 @@ export class AuthController {
 
       const token = signUserJWT(authenticatedUser);
 
-      res.cookie("shoot_jwt_token", token, {
+      res.cookie(ENV.COOKIE_NAME, token, {
         httpOnly: true,
         secure: ENV.IS_PRODUCTION,
         sameSite: ENV.IS_PRODUCTION ? "none" : "lax",

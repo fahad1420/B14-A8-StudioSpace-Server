@@ -22,7 +22,7 @@ function assert(condition: boolean, testName: string, detail?: string) {
 
 async function runAudit() {
   console.log("\n=========================================================");
-  console.log("  SHOOT LOCATION TECHNICAL AUDIT & TEST SUITE");
+  console.log("  STUDIOSPACE TECHNICAL AUDIT & TEST SUITE");
   console.log("=========================================================\n");
 
   // Setup
@@ -33,19 +33,19 @@ async function runAudit() {
   // Test User Identities
   const hostUser: AuthenticatedUser = {
     id: "examiner-host-user-id-01",
-    email: "examiner@shootlocation.com",
+    email: "examiner@studiospace.com",
     name: "Examiner Host",
   };
 
   const creatorUser: AuthenticatedUser = {
     id: "creator-test-user-id-02",
-    email: "creator@shootlocation.com",
+    email: "creator@studiospace.com",
     name: "Director Sophia",
   };
 
   const intruderUser: AuthenticatedUser = {
     id: "intruder-user-id-03",
-    email: "intruder@shootlocation.com",
+    email: "intruder@studiospace.com",
     name: "Intruder User",
   };
 
@@ -364,7 +364,7 @@ async function runAudit() {
   const auth = getAuth();
   
   // Test native Better Auth sign up
-  const testEmail = `filmmaker.${Date.now()}@shootlocation.com`;
+  const testEmail = `filmmaker.${Date.now()}@studiospace.com`;
   const signUpRes = await auth.api.signUpEmail({
     body: {
       name: "Indie Filmmaker",

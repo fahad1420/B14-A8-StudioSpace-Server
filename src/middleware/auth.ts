@@ -14,8 +14,11 @@ declare global {
 
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    // 1. Check HTTPOnly cookie shoot_jwt_token
-    const jwtCookie = req.cookies?.shoot_jwt_token;
+    // 1. Check HTTPOnly cookie (studiospace_jwt_token with legacy fallback)
+    const jwtCookie =
+      req.cookies?.[ENV.COOKIE_NAME] ||
+      req.cookies?.studiospace_jwt_token ||
+      req.cookies?.shoot_jwt_token;
     if (jwtCookie) {
       const decoded = verifyUserJWT(jwtCookie);
       if (decoded && decoded.id && decoded.email) {
