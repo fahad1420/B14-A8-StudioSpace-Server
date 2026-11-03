@@ -103,6 +103,7 @@ app.use("/api", (req, res, next) => {
     return next();
   }
   if (!isDatabaseConnected()) {
+    initiateDatabaseConnection().catch(() => {});
     return res.status(503).json({
       success: false,
       message: "Database service initializing. Please retry in a few moments.",
@@ -138,16 +139,16 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
 
 // Asynchronous Database Connection & Background Initializer
 let isConnecting = false;
-async function initiateDatabaseConnection(maxAttempts = 15, initialDelayMs = 2000) {
+async function initiateDatabaseConnection(maxInitialAttempts = 15, initialDelayMs = 2000) {
   if (isConnecting || isDatabaseConnected()) return;
   isConnecting = true;
   let attempt = 0;
   let delay = initialDelayMs;
 
-  while (attempt < maxAttempts) {
+  while (!isDatabaseConnected()) {
     attempt++;
     try {
-      console.log(`[Database] Connecting to database (Attempt ${attempt}/${maxAttempts})...`);
+      console.log(`[Database] Connecting to database (Attempt ${attempt})...`);
       const db = await connectToDatabase();
       initAuth(db);
 
@@ -163,16 +164,13 @@ async function initiateDatabaseConnection(maxAttempts = 15, initialDelayMs = 200
       return;
     } catch (err: any) {
       console.error(`[Database] Attempt ${attempt} failed:`, err.message || err);
-      if (attempt < maxAttempts) {
-        console.log(`[Database] Retrying in ${Math.round(delay / 1000)}s...`);
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        delay = Math.min(Math.round(delay * 1.5), 20000); // capped at 20s
-      }
+      console.log(`[Database] Retrying in ${Math.round(delay / 1000)}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(Math.round(delay * 1.5), 15000); // capped at 15s
     }
   }
 
   isConnecting = false;
-  console.error(`[Database] Max reconnection attempts reached. Server remains active serving /api/health.`);
 }
 
 // Start Express listener IMMEDIATELY so Render port scanner & health check pass
