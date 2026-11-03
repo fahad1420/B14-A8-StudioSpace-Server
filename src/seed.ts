@@ -49,9 +49,9 @@ export const SEED_STUDIOS: Partial<StudioDocument>[] = [
       "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=1200&q=80"
     ],
     amenities: [
-      "Acoustically Soundproofed Stage (NC-25)",
-      "Drive-In Elephant Door",
-      "400A 3-Phase Camlock Power",
+      "Acoustically Treated Sound Stage",
+      "Drive-In Loading Door",
+      "Dedicated 3-Phase Power",
       "Pre-Rigged Overhead Lighting Grid",
       "Green Screen Chroma Wall (30ft)",
       "Dedicated Production Office & Green Room"
