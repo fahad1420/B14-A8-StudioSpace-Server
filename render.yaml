@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: studiospace-server
+    name: studiospace-api
     runtime: node
     plan: free
     region: oregon
@@ -23,7 +23,7 @@ services:
       - key: BETTER_AUTH_URL
         fromService:
           type: web
-          name: studiospace-server
+          name: studiospace-api
           property: host
       - key: FRONTEND_URL
         sync: false
