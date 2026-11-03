@@ -4,10 +4,12 @@ import { ENV } from "./env.js";
 import { MemoryDatabase } from "./memory-db.js";
 
 // Ensure robust SRV DNS resolution on Windows / restrictive ISP environments for MongoDB Atlas
-try {
-  dns.setServers(["8.8.8.8", "1.1.1.1"]);
-} catch {
-  // Ignore if custom DNS cannot be set
+if (process.platform === "win32") {
+  try {
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+  } catch {
+    // Ignore if custom DNS cannot be set
+  }
 }
 
 let client: MongoClient | null = null;
