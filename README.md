@@ -1,7 +1,10 @@
 # StudioSpace — Backend API Server
 ### Official Assignment: B14-A8 | StudioSpace
 **Tagline:** Find Your Space. Create Your Story.  
-**Repository:** `b14-a8-shoot-location-server`
+**Repository:** `b14-a8-shoot-location-server`  
+**Live Backend API URL:** https://studiospace-api-4vhn.onrender.com  
+**Live Frontend Application:** https://thestudiospace.vercel.app  
+**Health Check:** https://studiospace-api-4vhn.onrender.com/api/health
 
 ---
 
