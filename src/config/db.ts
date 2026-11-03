@@ -22,8 +22,9 @@ export async function connectToDatabase(): Promise<any> {
 
   try {
     client = new MongoClient(ENV.MONGODB_URI, {
-      serverSelectionTimeoutMS: 2500,
-      connectTimeoutMS: 2500,
+      serverSelectionTimeoutMS: 8000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 20,
     });
     await client.connect();
     dbInstance = client.db(ENV.MONGODB_DB_NAME);
@@ -63,6 +64,20 @@ export function getClient(): MongoClient | null {
 
 async function setupIndexes(db: Db) {
   try {
+    // Better Auth Core Collections
+    const users = db.collection("user");
+    await users.createIndex({ email: 1 }, { unique: true });
+
+    const sessions = db.collection("session");
+    await sessions.createIndex({ token: 1 }, { unique: true });
+    await sessions.createIndex({ userId: 1 });
+    await sessions.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+    const accounts = db.collection("account");
+    await accounts.createIndex({ userId: 1 });
+    await accounts.createIndex({ providerId: 1, accountId: 1 });
+
+    // StudioSpace Collections
     const studios = db.collection("studios");
     await studios.createIndex({ hostId: 1 });
     await studios.createIndex({ category: 1 });

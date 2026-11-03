@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "test:audit": "node dist/test-audit.js",
+    "verify:db": "tsx src/verify-real-db.ts"
   },
   "keywords": [
     "studiospace",

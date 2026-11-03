@@ -19,9 +19,16 @@ export function initAuth(db: any) {
     },
     socialProviders: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID || "placeholder-client-id",
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET || "placeholder-client-secret",
-        enabled: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+        clientId: (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_ID.trim() !== "")
+          ? process.env.GOOGLE_CLIENT_ID
+          : (ENV.GOOGLE_CLIENT_ID && ENV.GOOGLE_CLIENT_ID.trim() !== "")
+            ? ENV.GOOGLE_CLIENT_ID
+            : "placeholder-client-id",
+        clientSecret: (process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_CLIENT_SECRET.trim() !== "")
+          ? process.env.GOOGLE_CLIENT_SECRET
+          : (ENV.GOOGLE_CLIENT_SECRET && ENV.GOOGLE_CLIENT_SECRET.trim() !== "")
+            ? ENV.GOOGLE_CLIENT_SECRET
+            : "placeholder-client-secret",
       },
     },
     plugins: [

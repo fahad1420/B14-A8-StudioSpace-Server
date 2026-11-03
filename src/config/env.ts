@@ -12,6 +12,30 @@ export const ENV = {
   BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || "http://localhost:5000",
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:3000",
   JWT_SECRET: process.env.JWT_SECRET || process.env.BETTER_AUTH_SECRET || "studiospace-secure-jwt-auth-secret-key-32chars-min",
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
   COOKIE_NAME: "studiospace_jwt_token",
   IS_PRODUCTION: process.env.NODE_ENV === "production",
 };
+
+// Production Security Guard: Enforce genuine non-fallback secrets in production
+if (ENV.IS_PRODUCTION) {
+  if (
+    !process.env.BETTER_AUTH_SECRET ||
+    process.env.BETTER_AUTH_SECRET === "studiospace-secure-jwt-auth-secret-key-32chars-min" ||
+    process.env.BETTER_AUTH_SECRET.length < 32
+  ) {
+    throw new Error(
+      "[Security FATAL] BETTER_AUTH_SECRET must be explicitly configured with a 32+ character random string in production environment."
+    );
+  }
+  if (
+    !process.env.JWT_SECRET ||
+    process.env.JWT_SECRET === "studiospace-secure-jwt-auth-secret-key-32chars-min" ||
+    process.env.JWT_SECRET.length < 32
+  ) {
+    throw new Error(
+      "[Security FATAL] JWT_SECRET must be explicitly configured with a 32+ character random string in production environment."
+    );
+  }
+}
