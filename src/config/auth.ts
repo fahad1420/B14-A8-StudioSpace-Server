@@ -55,6 +55,10 @@ export function getAuth() {
   return authInstance;
 }
 
+export function getAuthSafe() {
+  return authInstance;
+}
+
 export interface AuthenticatedUser {
   id: string;
   email: string;

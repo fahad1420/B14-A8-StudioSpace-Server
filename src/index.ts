@@ -2,8 +2,8 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import { toNodeHandler } from "better-auth/node";
-import { connectToDatabase, closeDatabase } from "./config/db.js";
-import { initAuth } from "./config/auth.js";
+import { connectToDatabase, closeDatabase, isDatabaseConnected } from "./config/db.js";
+import { initAuth, getAuthSafe } from "./config/auth.js";
 import { ENV } from "./config/env.js";
 import { seedDatabase } from "./seed.js";
 
@@ -50,106 +50,153 @@ app.use(cookieParser());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Server startup orchestrator
-async function startServer() {
-  try {
-    // 1. Connect to Database
-    const db = await connectToDatabase();
+// 1. Healthcheck (Always returns HTTP 200 immediately for cloud health checks)
+app.get("/api/health", (_req, res) => {
+  const dbConnected = isDatabaseConnected();
+  res.status(200).json({
+    status: "ok",
+    database: dbConnected ? "connected" : "connecting",
+    brand: "STUDIOSPACE",
+    tagline: "Find Your Space. Create Your Story.",
+    environment: ENV.NODE_ENV,
+    timestamp: new Date().toISOString(),
+  });
+});
 
-    // 2. Initialize Better Auth with Database instance
-    const auth = initAuth(db);
+// 2. Root info
+app.get("/", (_req, res) => {
+  res.status(200).json({
+    name: "B14-A8 | StudioSpace Server",
+    version: "1.0.0",
+    brand: "STUDIOSPACE",
+    tagline: "Find Your Space. Create Your Story.",
+    docs: "/api/health",
+  });
+});
 
-    // 3. Mount Better Auth standard node handler
-    app.all("/api/auth/*", (req, res, next) => {
-      // Skip custom auth endpoints if they match our custom route handlers
-      if (
-        req.path === "/api/auth/register" ||
-        req.path === "/api/auth/login" ||
-        req.path === "/api/auth/logout" ||
-        req.path === "/api/auth/me" ||
-        req.path === "/api/auth/sync-social"
-      ) {
-        return next();
-      }
-      return toNodeHandler(auth as any)(req, res);
-    });
-
-    // 4. Mount API Routes
-    app.use("/api/auth", authRoutes);
-    app.use("/api/studios", studioRoutes);
-    app.use("/api/bookings", bookingRoutes);
-    app.use("/api", miscRoutes);
-
-    // Healthcheck
-    app.get("/api/health", (_req, res) => {
-      res.status(200).json({
-        status: "ok",
-        brand: "STUDIOSPACE",
-        tagline: "Find Your Space. Create Your Story.",
-        environment: ENV.NODE_ENV,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    // Root info
-    app.get("/", (_req, res) => {
-      res.status(200).json({
-        name: "B14-A8 | StudioSpace Server",
-        version: "1.0.0",
-        brand: "STUDIOSPACE",
-        docs: "/api/health",
-      });
-    });
-
-    // 404 Handler
-    app.use((_req, res) => {
-      res.status(404).json({
-        success: false,
-        message: "Endpoint not found",
-      });
-    });
-
-    // Global Error Handler
-    app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-      console.error("[ServerError]", err);
-      const statusCode = err.statusCode || 500;
-      res.status(statusCode).json({
-        success: false,
-        message: err.message || "Internal server error occurred",
-      });
-    });
-
-    // Auto-seed if database is empty
-    try {
-      await seedDatabase();
-    } catch (seedErr) {
-      console.warn("[Auto-Seed] Notice during seed check:", seedErr);
-    }
-
-    // Start Express listener
-    const server = app.listen(ENV.PORT, () => {
-      console.log(`\n======================================================`);
-      console.log(`  STUDIOSPACE API SERVER RUNNING ON PORT ${ENV.PORT}`);
-      console.log(`  Environment: ${ENV.NODE_ENV}`);
-      console.log(`  Healthcheck: http://localhost:${ENV.PORT}/api/health`);
-      console.log(`======================================================\n`);
-    });
-
-    // Graceful shutdown
-    const handleShutdown = async (signal: string) => {
-      console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
-      server.close(async () => {
-        await closeDatabase();
-        process.exit(0);
-      });
-    };
-
-    process.on("SIGINT", () => handleShutdown("SIGINT"));
-    process.on("SIGTERM", () => handleShutdown("SIGTERM"));
-  } catch (error) {
-    console.error("[Fatal] Failed to bootstrap server:", error);
-    process.exit(1);
+// 3. Mount Better Auth standard node handler
+app.all("/api/auth/*", (req, res, next) => {
+  // Skip custom auth endpoints if they match our custom route handlers
+  if (
+    req.path === "/api/auth/register" ||
+    req.path === "/api/auth/login" ||
+    req.path === "/api/auth/logout" ||
+    req.path === "/api/auth/me" ||
+    req.path === "/api/auth/sync-social"
+  ) {
+    return next();
   }
+  const auth = getAuthSafe();
+  if (!auth) {
+    return res.status(503).json({
+      success: false,
+      message: "Authentication service initializing. Please retry in a few moments.",
+      database: isDatabaseConnected() ? "connected" : "connecting",
+    });
+  }
+  return toNodeHandler(auth as any)(req, res);
+});
+
+// 4. Database readiness guard for data API routes
+app.use("/api", (req, res, next) => {
+  if (req.path === "/health" || req.method === "OPTIONS") {
+    return next();
+  }
+  if (!isDatabaseConnected()) {
+    return res.status(503).json({
+      success: false,
+      message: "Database service initializing. Please retry in a few moments.",
+      database: "connecting",
+    });
+  }
+  next();
+});
+
+// 5. Mount API Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/studios", studioRoutes);
+app.use("/api/bookings", bookingRoutes);
+app.use("/api", miscRoutes);
+
+// 404 Handler
+app.use((_req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Endpoint not found",
+  });
+});
+
+// Global Error Handler
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error("[ServerError]", err);
+  const statusCode = err.statusCode || 500;
+  res.status(statusCode).json({
+    success: false,
+    message: err.message || "Internal server error occurred",
+  });
+});
+
+// Asynchronous Database Connection & Background Initializer
+let isConnecting = false;
+async function initiateDatabaseConnection(maxAttempts = 15, initialDelayMs = 2000) {
+  if (isConnecting || isDatabaseConnected()) return;
+  isConnecting = true;
+  let attempt = 0;
+  let delay = initialDelayMs;
+
+  while (attempt < maxAttempts) {
+    attempt++;
+    try {
+      console.log(`[Database] Connecting to database (Attempt ${attempt}/${maxAttempts})...`);
+      const db = await connectToDatabase();
+      initAuth(db);
+
+      // Auto-seed if database is empty
+      try {
+        await seedDatabase();
+      } catch (seedErr) {
+        console.warn("[Auto-Seed] Notice during seed check:", seedErr);
+      }
+
+      console.log(`[Database] Successfully established database connection and initialized auth.`);
+      isConnecting = false;
+      return;
+    } catch (err: any) {
+      console.error(`[Database] Attempt ${attempt} failed:`, err.message || err);
+      if (attempt < maxAttempts) {
+        console.log(`[Database] Retrying in ${Math.round(delay / 1000)}s...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay = Math.min(Math.round(delay * 1.5), 20000); // capped at 20s
+      }
+    }
+  }
+
+  isConnecting = false;
+  console.error(`[Database] Max reconnection attempts reached. Server remains active serving /api/health.`);
 }
 
-startServer();
+// Start Express listener IMMEDIATELY so Render port scanner & health check pass
+const server = app.listen(ENV.PORT, () => {
+  console.log(`\n======================================================`);
+  console.log(`  STUDIOSPACE API SERVER RUNNING ON PORT ${ENV.PORT}`);
+  console.log(`  Environment: ${ENV.NODE_ENV}`);
+  console.log(`  Healthcheck: http://localhost:${ENV.PORT}/api/health`);
+  console.log(`======================================================\n`);
+
+  // Initiate database connection asynchronously in background
+  initiateDatabaseConnection().catch((err) => {
+    console.error("[Database] Background connection orchestrator unhandled error:", err);
+  });
+});
+
+// Graceful shutdown
+const handleShutdown = async (signal: string) => {
+  console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
+  server.close(async () => {
+    await closeDatabase();
+    process.exit(0);
+  });
+};
+
+process.on("SIGINT", () => handleShutdown("SIGINT"));
+process.on("SIGTERM", () => handleShutdown("SIGTERM"));

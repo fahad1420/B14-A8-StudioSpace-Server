@@ -15,6 +15,10 @@ if (process.platform === "win32") {
 let client: MongoClient | null = null;
 let dbInstance: any = null;
 
+export function isDatabaseConnected(): boolean {
+  return dbInstance !== null;
+}
+
 export async function connectToDatabase(): Promise<any> {
   if (dbInstance) {
     return dbInstance;
@@ -35,6 +39,8 @@ export async function connectToDatabase(): Promise<any> {
       serverSelectionTimeoutMS: 8000,
       connectTimeoutMS: 10000,
       maxPoolSize: 20,
+      minPoolSize: 1,
+      retryWrites: true,
     });
     await client.connect();
     dbInstance = client.db(ENV.MONGODB_DB_NAME);
@@ -43,8 +49,18 @@ export async function connectToDatabase(): Promise<any> {
     await setupIndexes(dbInstance);
     return dbInstance;
   } catch (error: any) {
+    if (client) {
+      try {
+        await client.close();
+      } catch {
+        // Ignore close error during teardown
+      }
+      client = null;
+    }
+    dbInstance = null;
+
     if (isProduction || ENV.MONGODB_URI.startsWith("mongodb+srv://")) {
-      console.error("[Database] FATAL: MongoDB Atlas / Production database connection failed.");
+      console.error("[Database] Production / Atlas database connection failed.");
       console.error("[Database] Error details:", error.message || error);
       throw new Error(
         `[Database] FATAL: In-memory fallback is strictly disallowed when MongoDB Atlas is configured. Ensure MONGODB_URI is valid and Atlas is accessible. Details: ${error.message}`
@@ -63,7 +79,7 @@ export async function connectToDatabase(): Promise<any> {
 
 export function getDatabase(): any {
   if (!dbInstance) {
-    throw new Error("Database not initialized. Call connectToDatabase() first.");
+    throw new Error("Database not initialized or currently connecting. Please retry shortly.");
   }
   return dbInstance;
 }

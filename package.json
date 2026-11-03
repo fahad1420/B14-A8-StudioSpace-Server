@@ -24,6 +24,9 @@
   ],
   "author": "StudioSpace Team",
   "license": "ISC",
+  "engines": {
+    "node": ">=20.0.0 <23.0.0"
+  },
   "dependencies": {
     "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
