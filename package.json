@@ -10,6 +10,7 @@
     "dev": "tsx watch src/index.ts",
     "seed": "tsx src/seed.ts",
     "test:audit": "node dist/test-audit.js",
+    "test:booking-logic": "tsx src/test-booking-logic.ts",
     "test:crud-booking": "tsx src/test-real-crud-booking.ts",
     "verify:db": "tsx src/verify-real-db.ts"
   },
