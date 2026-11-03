@@ -1,6 +1,14 @@
 import { MongoClient, ObjectId } from "mongodb";
+import dns from "dns";
 import { ENV } from "./config/env.js";
 import crypto from "crypto";
+
+// Ensure robust SRV DNS resolution on Windows / restrictive ISP environments for MongoDB Atlas
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch {
+  // Ignore if custom DNS cannot be set
+}
 
 function maskUri(uri: string): string {
   try {
@@ -240,3 +248,4 @@ if (process.argv[1]?.endsWith("verify-real-db.ts") || process.argv[1]?.endsWith(
       process.exit(1);
     });
 }
+

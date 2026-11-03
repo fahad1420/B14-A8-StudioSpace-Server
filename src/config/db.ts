@@ -1,6 +1,14 @@
 import { MongoClient, Db } from "mongodb";
+import dns from "dns";
 import { ENV } from "./env.js";
 import { MemoryDatabase } from "./memory-db.js";
+
+// Ensure robust SRV DNS resolution on Windows / restrictive ISP environments for MongoDB Atlas
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch {
+  // Ignore if custom DNS cannot be set
+}
 
 let client: MongoClient | null = null;
 let dbInstance: any = null;
@@ -33,11 +41,11 @@ export async function connectToDatabase(): Promise<any> {
     await setupIndexes(dbInstance);
     return dbInstance;
   } catch (error: any) {
-    if (isProduction) {
-      console.error("[Database] FATAL: Production environment requires a reachable MongoDB Atlas connection string.");
+    if (isProduction || ENV.MONGODB_URI.startsWith("mongodb+srv://")) {
+      console.error("[Database] FATAL: MongoDB Atlas / Production database connection failed.");
       console.error("[Database] Error details:", error.message || error);
       throw new Error(
-        `[Database] FATAL: In-memory fallback is strictly disallowed in production. Ensure MONGODB_URI is configured and Atlas is accessible.`
+        `[Database] FATAL: In-memory fallback is strictly disallowed when MongoDB Atlas is configured. Ensure MONGODB_URI is valid and Atlas is accessible. Details: ${error.message}`
       );
     }
 

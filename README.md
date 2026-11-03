@@ -150,13 +150,22 @@ npm install
 # 3. Seed initial creative studios & examiner test account
 npm run seed
 
-# 4. Start development server with live reload
+# 4. Verify live MongoDB Atlas connection & collections
+npm run verify:db
+
+# 5. Run full automated audit test suite
+npm run test:audit
+
+# 6. Run live Atlas Studio CRUD & Booking verification
+npm run test:crud-booking
+
+# 7. Start development server with live reload
 npm run dev
 
-# 5. Build for production
+# 8. Build for production
 npm run build
 
-# 6. Start production build
+# 9. Start production build
 npm start
 ```
 
