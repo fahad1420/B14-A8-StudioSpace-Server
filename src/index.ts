@@ -20,6 +20,10 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://127.0.0.1:3000",
   "https://studiospace.vercel.app",
+  "https://thestudiospace.vercel.app",
+  "https://studiospacehq.vercel.app",
+  "https://studiospacecreative.vercel.app",
+  "https://mystudiospace.vercel.app",
   "https://shootlocation.vercel.app",
 ].filter(Boolean);
 
@@ -28,7 +32,10 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, Postman)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin) || !ENV.IS_PRODUCTION) {
+      const isVercelStudio =
+        origin.endsWith(".vercel.app") &&
+        (origin.includes("studiospace") || origin.includes("shootlocation"));
+      if (allowedOrigins.includes(origin) || isVercelStudio || !ENV.IS_PRODUCTION) {
         return callback(null, origin);
       }
       return callback(new Error(`CORS policy violation: ${origin} not allowed`));

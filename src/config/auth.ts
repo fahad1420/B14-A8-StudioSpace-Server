@@ -12,7 +12,16 @@ export function initAuth(db: any) {
     database: mongodbAdapter(db),
     secret: ENV.BETTER_AUTH_SECRET,
     baseURL: ENV.BETTER_AUTH_URL,
-    trustedOrigins: [ENV.FRONTEND_URL, "http://localhost:3000", "http://127.0.0.1:3000"],
+    trustedOrigins: [
+      ENV.FRONTEND_URL,
+      "http://localhost:3000",
+      "http://127.0.0.1:3000",
+      "https://studiospace.vercel.app",
+      "https://thestudiospace.vercel.app",
+      "https://studiospacehq.vercel.app",
+      "https://studiospacecreative.vercel.app",
+      "https://mystudiospace.vercel.app",
+    ].filter(Boolean),
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 6,
