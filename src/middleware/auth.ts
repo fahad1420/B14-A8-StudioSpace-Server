@@ -41,8 +41,20 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     // 3. Check Better Auth session via getSession or session cookie
     try {
       const auth = getAuth();
+      const webHeaders = new Headers();
+      if (req.headers) {
+        for (const [key, val] of Object.entries(req.headers)) {
+          if (val !== undefined) {
+            if (Array.isArray(val)) {
+              val.forEach((v) => webHeaders.append(key, v));
+            } else {
+              webHeaders.set(key, String(val));
+            }
+          }
+        }
+      }
       const session = await auth.api.getSession({
-        headers: req.headers as any,
+        headers: webHeaders,
       });
 
       if (session && session.user) {
@@ -59,22 +71,43 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     }
 
     // 4. Check better-auth session cookie directly in MongoDB if needed
-    const sessionToken = req.cookies?.["better-auth.session_token"] || req.cookies?.["better_auth_session_token"];
-    if (sessionToken) {
+    // Support production __Secure- prefix, local prefix, and signed cookie format (<token>.<signature>)
+    let rawSessionCookie =
+      req.cookies?.["__Secure-better-auth.session_token"] ||
+      req.cookies?.["better-auth.session_token"] ||
+      req.cookies?.["better_auth_session_token"];
+
+    if (!rawSessionCookie && req.headers.cookie) {
+      const match = req.headers.cookie.match(/(?:__Secure-)?better-?auth[._]session_token=([^;]+)/);
+      if (match && match[1]) {
+        rawSessionCookie = decodeURIComponent(match[1].trim());
+      }
+    }
+
+    if (rawSessionCookie) {
       try {
         const db = getDatabase();
+        const tokenCandidate = rawSessionCookie.includes(".")
+          ? rawSessionCookie.split(".")[0].trim()
+          : rawSessionCookie.trim();
+
         const sessionRecord = await db.collection("session").findOne({
-          token: sessionToken,
+          token: { $in: [rawSessionCookie, tokenCandidate] },
           expiresAt: { $gt: new Date() },
         });
 
         if (sessionRecord && sessionRecord.userId) {
+          const userIdStr = sessionRecord.userId.toString();
+          const orConditions: any[] = [
+            { id: userIdStr },
+            { _id: userIdStr },
+          ];
+          if (ObjectId.isValid(userIdStr)) {
+            orConditions.push({ _id: new ObjectId(userIdStr) });
+          }
+
           const userRecord = await db.collection("user").findOne({
-            $or: [
-              { _id: new ObjectId(sessionRecord.userId) },
-              { id: sessionRecord.userId },
-              { _id: sessionRecord.userId }
-            ]
+            $or: orConditions,
           });
 
           if (userRecord) {
