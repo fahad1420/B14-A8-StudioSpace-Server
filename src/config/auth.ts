@@ -8,18 +8,35 @@ import { ENV } from "./env.js";
 let authInstance: any = null;
 
 export function initAuth(db: any) {
-  const isSecure = ENV.IS_PRODUCTION || ENV.BETTER_AUTH_URL.startsWith("https://");
+  // In the Vercel-domain OAuth callback architecture:
+  // Browser-facing callback is https://thestudiospace.vercel.app/api/auth/callback/google,
+  // which Vercel proxies internally to Render.
+  // Better Auth baseURL must be configured to the Vercel frontend domain (https://thestudiospace.vercel.app)
+  // so that Google OAuth redirect_uri is generated as https://thestudiospace.vercel.app/api/auth/callback/google,
+  // completely eliminating onrender.com from the browser address bar and bypassing Chrome Safe Browsing false-positives.
+  const authBaseURL = (
+    process.env.BETTER_AUTH_BASE_URL ||
+    (ENV.IS_PRODUCTION ? (process.env.FRONTEND_URL || "https://thestudiospace.vercel.app") : ENV.BETTER_AUTH_URL)
+  ).trim().replace(/\/$/, "");
+
+  const isSecure = ENV.IS_PRODUCTION || authBaseURL.startsWith("https://");
 
   authInstance = betterAuth({
     database: mongodbAdapter(db),
     secret: ENV.BETTER_AUTH_SECRET,
-    baseURL: ENV.BETTER_AUTH_URL,
+    baseURL: authBaseURL,
+    onAPIError: {
+      errorURL: `${authBaseURL}/login`,
+    },
     trustedOrigins: [
       ENV.FRONTEND_URL,
+      "https://thestudiospace.vercel.app",
+      "https://studiospace.vercel.app",
+      "https://studiospace-api-4vhn.onrender.com",
       "http://localhost:3000",
       "http://127.0.0.1:3000",
-      "https://studiospace.vercel.app",
-      "https://thestudiospace.vercel.app",
+      "http://localhost:5000",
+      "http://127.0.0.1:5000",
       "https://studiospacehq.vercel.app",
       "https://studiospacecreative.vercel.app",
       "https://mystudiospace.vercel.app",

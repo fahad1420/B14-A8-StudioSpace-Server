@@ -21,12 +21,9 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: BETTER_AUTH_URL
-        fromService:
-          type: web
-          name: studiospace-api
-          property: host
+        value: https://thestudiospace.vercel.app
       - key: FRONTEND_URL
-        sync: false
+        value: https://thestudiospace.vercel.app
       - key: GOOGLE_CLIENT_ID
         sync: false
       - key: GOOGLE_CLIENT_SECRET
