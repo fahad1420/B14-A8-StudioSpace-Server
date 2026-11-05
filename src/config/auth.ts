@@ -8,6 +8,8 @@ import { ENV } from "./env.js";
 let authInstance: any = null;
 
 export function initAuth(db: any) {
+  const isSecure = ENV.IS_PRODUCTION || ENV.BETTER_AUTH_URL.startsWith("https://");
+
   authInstance = betterAuth({
     database: mongodbAdapter(db),
     secret: ENV.BETTER_AUTH_SECRET,
@@ -38,6 +40,28 @@ export function initAuth(db: any) {
           : (ENV.GOOGLE_CLIENT_SECRET && ENV.GOOGLE_CLIENT_SECRET.trim() !== "")
             ? ENV.GOOGLE_CLIENT_SECRET
             : "placeholder-client-secret",
+      },
+    },
+    advanced: {
+      useSecureCookies: isSecure,
+      defaultCookieAttributes: {
+        sameSite: isSecure ? "none" : "lax",
+        secure: isSecure,
+        httpOnly: true,
+      },
+      cookies: {
+        state: {
+          attributes: {
+            sameSite: isSecure ? "none" : "lax",
+            secure: isSecure,
+          },
+        },
+        oauth_state: {
+          attributes: {
+            sameSite: isSecure ? "none" : "lax",
+            secure: isSecure,
+          },
+        },
       },
     },
     plugins: [

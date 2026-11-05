@@ -14,6 +14,9 @@ import miscRoutes from "./routes/misc.routes.js";
 
 const app = express();
 
+// Trust reverse proxy (Cloudflare / Render) for secure cookies and accurate protocol/host detection
+app.set("trust proxy", 1);
+
 // Allowed origins for CORS (Credentialed)
 const allowedOrigins = [
   ENV.FRONTEND_URL,
