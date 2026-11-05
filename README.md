@@ -1,10 +1,12 @@
 # StudioSpace — Backend API Server
 ### Official Assignment: B14-A8 | StudioSpace
 **Tagline:** Find Your Space. Create Your Story.  
-**Repository:** `b14-a8-shoot-location-server`  
+**Brand:** STUDIOSPACE  
 **Live Backend API URL:** https://studiospace-api-4vhn.onrender.com  
 **Live Frontend Application:** https://thestudiospace.vercel.app  
-**Health Check:** https://studiospace-api-4vhn.onrender.com/api/health
+**Health Check:** https://studiospace-api-4vhn.onrender.com/api/health  
+**Server GitHub Repository:** https://github.com/fahad1420/B14-A8-StudioSpace-Server  
+**Client GitHub Repository:** https://github.com/fahad1420/B14-A8-StudioSpace-Client  
 
 ---
 
@@ -18,9 +20,10 @@ The **StudioSpace API Server** is a high-performance RESTful backend engineered 
 - **Language:** TypeScript
 - **Framework:** Express.js
 - **Database:** MongoDB Atlas (native official `mongodb` driver)
-- **Authentication:** Better Auth + JWT HTTPOnly cookies
+- **Authentication:** Better Auth v1.4 + JWT HTTPOnly cookies
 - **Validation:** Zod schemas
 - **Security:** Credentialed CORS, HTTPOnly & Secure Cookie protection, pbkdf2 password hashing
+- **Deployment:** Render (Web Service)
 
 ---
 
@@ -55,7 +58,7 @@ The **StudioSpace API Server** is a high-performance RESTful backend engineered 
 | `POST` | `/api/auth/logout` | Invalidate session & clear HTTPOnly cookies | Yes |
 | `GET` | `/api/auth/me` | Retrieve authenticated profile from JWT session | Yes |
 | `POST` | `/api/auth/sync-social` | Synchronize social login (Google) into JWT session | No |
-| `ALL` | `/api/auth/*` | Better Auth native handler endpoints | Config |
+| `ALL` | `/api/auth/*` | Better Auth native handler endpoints (OAuth, session) | Config |
 
 ### Studios (`/api/studios`)
 | Method | Endpoint | Description | Auth Required |
@@ -63,7 +66,7 @@ The **StudioSpace API Server** is a high-performance RESTful backend engineered 
 | `GET` | `/api/studios` | Filter & search studios (category, price, search, sort, limit) | No |
 | `GET` | `/api/studios/:id` | Fetch detailed studio profile | No |
 | `POST` | `/api/studios` | Create a new studio listing (host identity derived from token) | **Yes (JWT)** |
-| `PUT / PATCH` | `/api/studios/:id` | Update studio listing (owner verified, non-owners get 403) | **Yes (JWT)** |
+| `PATCH` | `/api/studios/:id` | Update studio listing (owner verified, non-owners get 403) | **Yes (JWT)** |
 | `DELETE` | `/api/studios/:id` | Delete studio listing (owner verified, non-owners get 403) | **Yes (JWT)** |
 
 ### Bookings (`/api/bookings`)
@@ -90,6 +93,7 @@ The **StudioSpace API Server** is a high-performance RESTful backend engineered 
 ### A. JWT Security with HTTPOnly Cookies
 - All state-mutating studio and booking routes (`POST /api/studios`, `DELETE /api/studios/:id`, `POST /api/bookings`, `PATCH /api/bookings/:id/*`) are strictly guarded by `requireAuth` middleware.
 - Missing or invalid sessions reject with **HTTP 401 Unauthorized**.
+- Non-owners attempting to edit or delete another host's studio are rejected with **HTTP 403 Forbidden**.
 - Tokens are stored exclusively in HTTPOnly cookies (`studiospace_jwt_token`), preventing Cross-Site Scripting (XSS) token exfiltration.
 - Host and creator identities are strictly extracted from verified tokens; client-submitted `hostId`, `ownerEmail`, or monetary amounts are never trusted.
 
@@ -112,10 +116,10 @@ PORT=5000
 NODE_ENV=development
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/studiospace?retryWrites=true&w=majority
 MONGODB_DB_NAME=studiospace
-BETTER_AUTH_SECRET=studiospace-secure-jwt-auth-secret-key-32chars-min
+BETTER_AUTH_SECRET=your-secure-32-char-random-string
 BETTER_AUTH_URL=http://localhost:5000
 FRONTEND_URL=http://localhost:3000
-JWT_SECRET=studiospace-secure-jwt-auth-secret-key-32chars-min
+JWT_SECRET=your-secure-32-char-random-string
 
 # Google OAuth Credentials (Optional in local development, required for cloud Google login)
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
@@ -133,10 +137,10 @@ To configure Google Social Login with Better Auth:
 4. Name: `StudioSpace Auth`.
 5. **Authorized JavaScript origins:**
    - Local: `http://localhost:5000`, `http://localhost:3000`
-   - Production: `https://<your-render-app>.onrender.com`, `https://<your-vercel-app>.vercel.app`
+   - Production: `https://thestudiospace.vercel.app`, `https://studiospace-api-4vhn.onrender.com`
 6. **Authorized redirect URIs:**
-   - Local: `http://localhost:5000/api/auth/callback/google`
-   - Production: `https://<your-render-app>.onrender.com/api/auth/callback/google`
+   - Local: `http://localhost:3000/api/auth/callback/google`
+   - Production: `https://thestudiospace.vercel.app/api/auth/callback/google`
 7. Copy the generated **Client ID** and **Client Secret** into your `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
 
 ---
@@ -177,7 +181,7 @@ npm start
 ## 9. Render Deployment Guide
 
 1. Create a new **Web Service** on [Render](https://render.com).
-2. Connect your GitHub repository `b14-a8-shoot-location-server`.
+2. Connect your GitHub repository `https://github.com/fahad1420/B14-A8-StudioSpace-Server`.
 3. Configure settings:
    - **Environment:** `Node`
    - **Build Command:** `npm install && npm run build`
@@ -190,16 +194,22 @@ npm start
    - `MONGODB_DB_NAME`: `studiospace`
    - `BETTER_AUTH_SECRET`: `<secure-32-char-random-string>`
    - `JWT_SECRET`: `<secure-32-char-random-string>`
-   - `BETTER_AUTH_URL`: `https://<your-render-app>.onrender.com`
-   - `FRONTEND_URL`: `https://<your-vercel-app>.vercel.app`
-   - `GOOGLE_CLIENT_ID`: `<your-google-client-id>` (optional)
-   - `GOOGLE_CLIENT_SECRET`: `<your-google-client-secret>` (optional)
+   - `BETTER_AUTH_URL`: `https://thestudiospace.vercel.app`
+   - `FRONTEND_URL`: `https://thestudiospace.vercel.app`
+   - `GOOGLE_CLIENT_ID`: `<your-google-client-id>`
+   - `GOOGLE_CLIENT_SECRET`: `<your-google-client-secret>`
 
 ---
 
 ## 10. Examiner Test Account
-For evaluator convenience, the database seed script generates verified host accounts:
-- **Primary Email:** `examiner@studiospace.com`
-- **Legacy Alias:** `examiner@shootlocation.com`
+
+For evaluator review, the database includes a pre-seeded verified host and creator account:
+- **Email:** `examiner@studiospace.com`
 - **Password:** `ExaminerPassword123!`
-- **Role:** Creative Studio Host & Creator (owns active seeded studios)
+- **Role:** Creative Studio Host & Creator (owns seeded active listings)
+- **Convenience:** 1-click **"Fill Examiner Credentials"** shortcut button on the live `/login` screen.
+
+---
+
+## 11. Git Commit History
+This repository maintains a comprehensive, logical commit trajectory with **30+ meaningful commits**, documenting the progression from backend architecture, MongoDB connection, Better Auth integration, studio CRUD, double-booking prevention, concurrency locks, to production deployment.
