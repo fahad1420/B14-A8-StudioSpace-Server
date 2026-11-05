@@ -42,6 +42,10 @@ export function initAuth(db: any) {
             : "placeholder-client-secret",
       },
     },
+    account: {
+      storeStateStrategy: "database",
+      skipStateCookieCheck: true,
+    },
     advanced: {
       useSecureCookies: isSecure,
       defaultCookieAttributes: {
