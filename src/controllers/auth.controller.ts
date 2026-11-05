@@ -235,23 +235,38 @@ export class AuthController {
 
   static async logout(req: Request, res: Response) {
     try {
-      res.clearCookie(ENV.COOKIE_NAME, {
+      const cookieOpts = {
         httpOnly: true,
         secure: ENV.IS_PRODUCTION,
-        sameSite: ENV.IS_PRODUCTION ? "none" : "lax",
+        sameSite: (ENV.IS_PRODUCTION ? "none" : "lax") as any,
         path: "/",
-      });
+      };
 
-      res.clearCookie("shoot_jwt_token", {
-        httpOnly: true,
-        secure: ENV.IS_PRODUCTION,
-        sameSite: ENV.IS_PRODUCTION ? "none" : "lax",
-        path: "/",
-      });
+      res.clearCookie(ENV.COOKIE_NAME, cookieOpts);
+      res.clearCookie("shoot_jwt_token", cookieOpts);
+      res.clearCookie("better-auth.session_token", { path: "/" });
+      res.clearCookie("__Secure-better-auth.session_token", cookieOpts);
+      res.clearCookie("better_auth_session_token", cookieOpts);
 
-      res.clearCookie("better-auth.session_token", {
-        path: "/",
-      });
+      // Also clean up MongoDB session record if session cookie is present
+      const sessionCookie =
+        req.cookies?.["__Secure-better-auth.session_token"] ||
+        req.cookies?.["better-auth.session_token"] ||
+        req.cookies?.["better_auth_session_token"];
+
+      if (sessionCookie) {
+        try {
+          const db = getDatabase();
+          const tokenCandidate = sessionCookie.includes(".")
+            ? sessionCookie.split(".")[0].trim()
+            : sessionCookie.trim();
+          await db.collection("session").deleteOne({
+            token: { $in: [sessionCookie, tokenCandidate] },
+          });
+        } catch {
+          // Non-critical session deletion error
+        }
+      }
 
       return res.status(200).json({
         success: true,
